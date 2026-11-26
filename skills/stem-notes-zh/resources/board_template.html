@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📊 理工科三合一实时复习看板</title>
+<style>
+  /* ==========================================================================
+     stem-notes-zh 标准三合一复习看板模板 (board_template.html)
+     1. 100% 静态 HTML DOM 预渲染 + 纯 CSS 切 Tab 与翻面闪卡（无脚本环境也正常可用）
+     2. 浏览器环境下自动启用渐进式 localStorage 翻卡状态记忆
+     3. 印刷级数学排版（sup / sub / .frac / .bar，禁止裸露 ^ / _ / \frac）
+     ========================================================================== */
+  :root {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --sub: #475569;
+    --accent: #2563eb;
+    --accent-soft: #eff6ff;
+    --green: #15803d;
+    --green-soft: #f0fdf4;
+    --amber: #b45309;
+    --amber-soft: #fffbeb;
+    --purple: #6d28d9;
+    --purple-soft: #f5f3ff;
+    --danger: #b91c1c;
+    --danger-soft: #fef2f2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%;
+    overflow-x: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 12px 14px 28px;
+    line-height: 1.52;
+  }
+  .container { max-width: 920px; margin: 0 auto; width: 100%; }
+
+  /* 纯 CSS 状态机隐藏控件 */
+  .tab-rad, .fc-chk { display: none; }
+
+  /* 印刷级数学公式排版 */
+  sup, sub {
+    font-size: 75%;
+    line-height: 0;
+    position: relative;
+    vertical-align: baseline;
+  }
+  sup { top: -0.42em; }
+  sub { bottom: -0.22em; }
+  i { font-family: "Times New Roman", "Cambria Math", Georgia, serif; }
+  .bar {
+    display: inline-block;
+    border-top: 1.2px solid currentColor;
+    padding-top: 0.5px;
+    line-height: 1.02;
+  }
+  .frac {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    vertical-align: middle;
+    margin: 0 2px;
+    font-family: "Times New Roman", "Cambria Math", serif;
+    font-size: 94%;
+    line-height: 1.12;
+  }
+  .frac > .num {
+    border-bottom: 1.2px solid currentColor;
+    padding: 0 4px 1px;
+    text-align: center;
+  }
+  .frac > .den {
+    padding: 1px 4px 0;
+    text-align: center;
+  }
+
+  /* 顶部标题与进度栏 */
+  .header {
+    background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%);
+    color: #fff;
+    padding: 12px 16px;
+    border-radius: 11px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 3px 10px rgba(37, 99, 235, 0.16);
+  }
+  .header h1 {
+    font-size: 16px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .progress-pill {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* 快捷导航栏（连接 diagrams / quiz / notes） */
+  .quick-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    transition: all 0.15s;
+  }
+  .nav-link:hover {
+    background: var(--accent-soft);
+    border-color: #93c5fd;
+  }
+
+  /* 纯 CSS 4 列 Tab 导航 */
+  .tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .tab-btn {
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--sub);
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.14s;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    user-select: none;
+  }
+  .tab-btn:hover { border-color: #93c5fd; color: var(--accent); }
+
+  #tab-rad-1:checked ~ .container .tabs label[for="tab-rad-1"],
+  #tab-rad-2:checked ~ .container .tabs label[for="tab-rad-2"],
+  #tab-rad-3:checked ~ .container .tabs label[for="tab-rad-3"],
+  #tab-rad-4:checked ~ .container .tabs label[for="tab-rad-4"] {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  .tab-pane { display: none; }
+  #tab-rad-1:checked ~ .container #pane-1,
+  #tab-rad-2:checked ~ .container #pane-2,
+  #tab-rad-3:checked ~ .container #pane-3,
+  #tab-rad-4:checked ~ .container #pane-4 {
+    display: block;
+  }
+
+  .sec-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    margin: 12px 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: #1e293b;
+  }
+  .badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .badge-blue { background: var(--accent-soft); color: var(--accent); }
+  .badge-purple { background: var(--purple-soft); color: var(--purple); }
+  .badge-amber { background: var(--amber-soft); color: var(--amber); }
+  .badge-green { background: var(--green-soft); color: var(--green); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+  @media (min-width: 620px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+    .tabs { grid-template-columns: repeat(4, 1fr); }
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 13px;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+  }
+  .formula-box {
+    background: #f1f5f9;
+    border-left: 3px solid var(--accent);
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-family: "Times New Roman", "Cambria Math", "PingFang SC", serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #0f172a;
+    margin: 5px 0;
+    word-break: break-word;
+    line-height: 1.6;
+  }
+  .intuition { font-size: 12.2px; color: var(--sub); margin-top: 4px; }
+  .pitfall {
+    margin-top: 6px;
+    padding: 5px 8px;
+    background: var(--danger-soft);
+    border-radius: 6px;
+    font-size: 11.8px;
+    color: var(--danger);
+    font-weight: 600;
+  }
+
+  /* 追问与易错勘误卡片 */
+  .qa-card {
+    background: var(--purple-soft);
+    border: 1px solid #ddd6fe;
+    border-radius: 10px;
+    padding: 10px 13px;
+    margin-bottom: 8px;
+  }
+  .qa-q { font-size: 12.8px; font-weight: 700; color: #5b21b6; margin-bottom: 4px; }
+  .qa-a { font-size: 12.2px; color: #3b0764; }
+
+  /* 纯 CSS 静态预渲染翻面闪卡 */
+  .flashcard-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  @media (min-width: 620px) {
+    .flashcard-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .fcard {
+    background: var(--card);
+    border: 1.5px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.14s;
+    display: block;
+    user-select: none;
+  }
+  .fcard:hover {
+    border-color: var(--accent);
+    background: #f8fafc;
+  }
+  .fcard-front, .fcard-back {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 5px;
+  }
+  .fcard-back { display: none; }
+  .fc-chk:checked ~ .fcard-front { display: none; }
+  .fc-chk:checked ~ .fcard-back { display: flex; }
+  .fcard:has(.fc-chk:checked) {
+    background: #eff6ff;
+    border-color: #60a5fa;
+  }
+  .fcard-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .fcard-back .fcard-top { color: var(--green); }
+  .fcard-hint { font-size: 11px; color: #64748b; font-weight: 500; }
+  .fcard-body { font-size: 12.8px; font-weight: 600; color: #0f172a; line-height: 1.56; }
+  .fcard-back .fcard-body { color: #1e3a8a; font-weight: 500; }
+
+  /* 进阶导读 */
+  .preview-box {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border: 1px solid #fde68a;
+    border-radius: 10px;
+    padding: 11px 14px;
+    margin-top: 12px;
+  }
+  .preview-title { font-size: 13px; font-weight: 700; color: #92400e; margin-bottom: 5px; }
+  .preview-list { font-size: 12.2px; color: #78350f; padding-left: 18px; }
+  .preview-list li { margin-bottom: 4px; }
+</style>
+</head>
+<body>
+  <!-- 纯 CSS Tab 状态机 -->
+  <input type="radio" name="b-tab" id="tab-rad-1" class="tab-rad" checked>
+  <input type="radio" name="b-tab" id="tab-rad-2" class="tab-rad">
+  <input type="radio" name="b-tab" id="tab-rad-3" class="tab-rad">
+  <input type="radio" name="b-tab" id="tab-rad-4" class="tab-rad">
+
+  <div class="container">
+    <div class="header">
+      <h1>📊 学科专题 · 三合一实时复习看板</h1>
+      <div class="progress-pill">模块 1 / 3 · 进行中</div>
+    </div>
+
+    <div class="quick-nav">
+      <a class="nav-link" href="./diagrams/fig_01_demo.html">📐 查看矢量电路图</a>
+      <a class="nav-link" href="./quiz.html">📝 进入随堂变式测验</a>
+      <a class="nav-link" href="./notes.md">📄 复习笔记归档 (notes.md)</a>
+    </div>
+
+    <div class="tabs">
+      <label for="tab-rad-1" class="tab-btn">🔥 核心知识点与闪卡</label>
+      <label for="tab-rad-2" class="tab-btn">💬 易错排雷与答疑</label>
+      <label for="tab-rad-3" class="tab-btn">🖼️ 电路图与测验导航</label>
+      <label for="tab-rad-4" class="tab-btn">🃏 全部闪卡速刷</label>
+    </div>
+
+    <div id="pane-1" class="tab-pane">
+      <div class="sec-title">
+        <span>🃏 本节翻面闪卡（点击即翻 · 自动记忆）</span>
+        <span class="badge badge-amber">新卡置顶</span>
+      </div>
+      <div class="flashcard-grid">
+        <label class="fcard is-new">
+          <input type="checkbox" class="fc-chk" data-cid="card-1">
+          <div class="fcard-front">
+            <div class="fcard-top"><span>🆕 闪卡 #1</span><span class="fcard-hint">点此看答案 ➔</span></div>
+            <div class="fcard-body">静态预渲染示例：共射电路中 <i>r</i><sub>be</sub> 的工程估算式是什么？</div>
+          </div>
+          <div class="fcard-back">
+            <div class="fcard-top"><span>✅ 已翻开 · 答案</span><span class="fcard-hint">点此翻回正面 ↺</span></div>
+            <div class="fcard-body"><i>r</i><sub>be</sub> ≈ <i>r</i><sub>bb′</sub> + (1 + <i>β</i>)<span class="frac"><span class="num">26 mV</span><span class="den"><i>I</i><sub>EQ</sub></span></span></div>
+          </div>
+        </label>
+        <label class="fcard is-new">
+          <input type="checkbox" class="fc-chk" data-cid="card-2">
+          <div class="fcard-front">
+            <div class="fcard-top"><span>🆕 闪卡 #2</span><span class="fcard-hint">点此看答案 ➔</span></div>
+            <div class="fcard-body">共射放大电路电压放大倍数 <i>A</i><sub>u</sub> 前为何带负号？</div>
+          </div>
+          <div class="fcard-back">
+            <div class="fcard-top"><span>✅ 已翻开 · 答案</span><span class="fcard-hint">点此翻回正面 ↺</span></div>
+            <div class="fcard-body">表示输出电压 <i>u</i><sub>o</sub> 与输入电压 <i>u</i><sub>i</sub> 相位反相 180°。</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="sec-title">
+        <span>📌 核心公式与直觉卡</span>
+        <span class="badge badge-blue">模块 1</span>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <div class="card-title"><span>分压式偏置静态电位</span><span class="badge badge-green">直流 Q 点</span></div>
+          <div class="formula-box"><i>V</i><sub>BQ</sub> ≈ <span class="frac"><span class="num"><i>R</i><sub>b2</sub></span><span class="den"><i>R</i><sub>b1</sub> + <i>R</i><sub>b2</sub></span></span><i>V</i><sub>CC</sub></div>
+          <div class="intuition">直觉：流过分压电阻的电流远大于基极电流时，基极电位被分压器“钉死”。</div>
+          <div class="pitfall">⚠️ 避坑：先验证 <i>I</i><sub>1</sub> ≫ <i>I</i><sub>BQ</sub> 或 <i>R</i><sub>b1</sub>∥<i>R</i><sub>b2</sub> ≪ (1 + <i>β</i>)<i>R</i><sub>e</sub>，再直接用近似分压式。</div>
+        </div>
+      </div>
+
+      <div class="preview-box">
+        <div class="preview-title">🔭 下一阶段学习导读</div>
+        <ul class="preview-list">
+          <li>结合交流通路理解旁路电容 <i>C</i><sub>e</sub> 短路射极电阻后对增益与输入电阻的影响。</li>
+          <li>通过 <code>quiz.html</code> 完成迁移变式题自测，巩固薄弱环节。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div id="pane-2" class="tab-pane">
+      <div class="sec-title"><span>💬 高频易错与追问速记</span><span class="badge badge-purple">排雷</span></div>
+      <div class="qa-card">
+        <div class="qa-q">Q：算交流电压放大倍数时，负载电阻 <i>R</i><sub>L</sub> 为什么和 <i>R</i><sub>c</sub> 是并联关系？</div>
+        <div class="qa-a">A：在交流通路中，直流电源 <i>V</i><sub>CC</sub> 视为交流地，耦合电容 <i>C</i><sub>2</sub> 视为短路，因此 <i>R</i><sub>c</sub> 与 <i>R</i><sub>L</sub> 一端同接集电极 C、另一端同接交流地，构成并联 <i>R</i><sub>L</sub>′ = <i>R</i><sub>c</sub> ∥ <i>R</i><sub>L</sub>。</div>
+      </div>
+    </div>
+
+    <div id="pane-3" class="tab-pane">
+      <div class="sec-title"><span>🖼️ 配套图解与测验资源</span><span class="badge badge-blue">离线直达</span></div>
+      <div class="grid">
+        <div class="card">
+          <div class="card-title"><span>📐 矢量电路图</span><span class="badge badge-green">GB/T 4728</span></div>
+          <p class="intuition">独立高清 SVG 矢量电路图，含完整元件标注与图例说明。</p>
+          <p style="margin-top:8px;"><a class="nav-link" href="./diagrams/fig_01_demo.html">打开电路图 →</a></p>
+        </div>
+        <div class="card">
+          <div class="card-title"><span>📝 随堂变式测验</span><span class="badge badge-amber">离线错题本</span></div>
+          <p class="intuition">单题锁定 + 即时诊断解析 + 浏览器本地 localStorage 持久化错题本。</p>
+          <p style="margin-top:8px;"><a class="nav-link" href="./quiz.html">开始刷题 →</a></p>
+        </div>
+      </div>
+    </div>
+
+    <div id="pane-4" class="tab-pane">
+      <div class="sec-title"><span>🃏 全套闪卡集中混刷</span><span class="badge badge-green">状态同步</span></div>
+      <div class="flashcard-grid">
+        <label class="fcard is-new">
+          <input type="checkbox" class="fc-chk" data-cid="card-1">
+          <div class="fcard-front">
+            <div class="fcard-top"><span>❓ 闪卡 #1</span><span class="fcard-hint">点此看答案 ➔</span></div>
+            <div class="fcard-body">共射电路中 <i>r</i><sub>be</sub> 的工程估算式是什么？</div>
+          </div>
+          <div class="fcard-back">
+            <div class="fcard-top"><span>✅ 已翻开 · 答案</span><span class="fcard-hint">点此翻回正面 ↺</span></div>
+            <div class="fcard-body"><i>r</i><sub>be</sub> ≈ <i>r</i><sub>bb′</sub> + (1 + <i>β</i>)<span class="frac"><span class="num">26 mV</span><span class="den"><i>I</i><sub>EQ</sub></span></span></div>
+          </div>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    const STORAGE_KEY = 'stem_notes_board_flips_v1';
+    let flipMap = {};
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw && raw.startsWith('{')) flipMap = JSON.parse(raw);
+    } catch (e) {}
+    function save() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(flipMap)); } catch (e) {}
+    }
+    const chks = document.querySelectorAll('.fc-chk');
+    chks.forEach(function(chk) {
+      const cid = chk.getAttribute('data-cid');
+      if (cid && Object.prototype.hasOwnProperty.call(flipMap, cid)) {
+        chk.checked = Boolean(flipMap[cid]);
+      }
+      chk.addEventListener('change', function() {
+        if (!cid) return;
+        flipMap[cid] = this.checked;
+        document.querySelectorAll('.fc-chk[data-cid="' + cid + '"]').forEach(function(peer) {
+          peer.checked = chk.checked;
+        });
+        save();
+      });
+    });
+  })();
+  </script>
+</body>
+</html>

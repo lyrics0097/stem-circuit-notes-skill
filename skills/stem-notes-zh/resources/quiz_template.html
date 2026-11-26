@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📝 理工科随堂变式测验（离线 localStorage 错题本版）</title>
+<style>
+  /* ==========================================================================
+     stem-notes-zh 标准交互式随堂测验模板 (quiz_template.html)
+     1. 100% 静态 HTML DOM 预渲染 + 2x2 选项双列网格 + 左文右图 .q-body-row；
+     2. 单题写一道锁一道（纯 CSS pointer-events: none + JS 锁定）+ 「❓ 此题不会」按钮；
+     3. 纯前端 localStorage 持久化作答进度、实时得分与错题本，零网络请求、离线可用。
+     ========================================================================== */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%;
+    min-height: 100vh;
+    background: #0f172a;
+    color: #f8fafc;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 16px;
+  }
+  .page-shell {
+    max-width: 780px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .quiz-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 10px 14px;
+  }
+  .quiz-title { font-size: 15px; font-weight: 700; color: #f8fafc; }
+  .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .live-summary {
+    font-size: 12px;
+    font-weight: 600;
+    color: #cbd5e1;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 999px;
+    padding: 3px 10px;
+  }
+  .header-btn {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid #475569;
+    background: #334155;
+    color: #e2e8f0;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s;
+  }
+  .header-btn:hover { background: #475569; }
+  .header-btn.danger { border-color: rgba(239, 68, 68, 0.45); color: #fca5a5; background: rgba(239, 68, 68, 0.12); }
+  .header-btn.danger:hover { background: rgba(239, 68, 68, 0.24); }
+
+  .quiz-wrap {
+    width: 100%;
+    min-height: 440px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 12px 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+    display: flex;
+    flex-direction: column;
+  }
+  input[type="radio"] { display: none; }
+
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #334155;
+  }
+  .seg-bar { display: flex; gap: 6px; flex: 1; }
+  .seg-item {
+    flex: 1;
+    height: 28px;
+    border-radius: 6px;
+    background: #334155;
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1.5px solid transparent;
+    user-select: none;
+  }
+  .seg-item:hover { background: #475569; color: #f8fafc; }
+
+  #nav-q1:checked ~ .quiz-wrap .top-bar .seg-1,
+  #nav-q2:checked ~ .quiz-wrap .top-bar .seg-2,
+  #nav-q3:checked ~ .quiz-wrap .top-bar .seg-3,
+  #nav-q4:checked ~ .quiz-wrap .top-bar .seg-4,
+  #nav-q5:checked ~ .quiz-wrap .top-bar .seg-5 {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
+    color: #f8fafc;
+  }
+
+  #q1-a.is-right:checked ~ .quiz-wrap .seg-1, #q1-b.is-right:checked ~ .quiz-wrap .seg-1,
+  #q1-c.is-right:checked ~ .quiz-wrap .seg-1, #q1-d.is-right:checked ~ .quiz-wrap .seg-1 { background: rgba(16, 185, 129, 0.28); color: #34d399; border-color: #10b981; }
+  #q1-a.is-wrong:checked ~ .quiz-wrap .seg-1, #q1-b.is-wrong:checked ~ .quiz-wrap .seg-1,
+  #q1-c.is-wrong:checked ~ .quiz-wrap .seg-1, #q1-d.is-wrong:checked ~ .quiz-wrap .seg-1 { background: rgba(239, 68, 68, 0.28); color: #f87171; border-color: #ef4444; }
+  #q1-u.is-unknown:checked ~ .quiz-wrap .seg-1 { background: rgba(245, 158, 11, 0.28); color: #fbbf24; border-color: #f59e0b; }
+
+  #q2-a.is-right:checked ~ .quiz-wrap .seg-2, #q2-b.is-right:checked ~ .quiz-wrap .seg-2,
+  #q2-c.is-right:checked ~ .quiz-wrap .seg-2, #q2-d.is-right:checked ~ .quiz-wrap .seg-2 { background: rgba(16, 185, 129, 0.28); color: #34d399; border-color: #10b981; }
+  #q2-a.is-wrong:checked ~ .quiz-wrap .seg-2, #q2-b.is-wrong:checked ~ .quiz-wrap .seg-2,
+  #q2-c.is-wrong:checked ~ .quiz-wrap .seg-2, #q2-d.is-wrong:checked ~ .quiz-wrap .seg-2 { background: rgba(239, 68, 68, 0.28); color: #f87171; border-color: #ef4444; }
+  #q2-u.is-unknown:checked ~ .quiz-wrap .seg-2 { background: rgba(245, 158, 11, 0.28); color: #fbbf24; border-color: #f59e0b; }
+
+  #q3-a.is-right:checked ~ .quiz-wrap .seg-3, #q3-b.is-right:checked ~ .quiz-wrap .seg-3,
+  #q3-c.is-right:checked ~ .quiz-wrap .seg-3, #q3-d.is-right:checked ~ .quiz-wrap .seg-3 { background: rgba(16, 185, 129, 0.28); color: #34d399; border-color: #10b981; }
+  #q3-a.is-wrong:checked ~ .quiz-wrap .seg-3, #q3-b.is-wrong:checked ~ .quiz-wrap .seg-3,
+  #q3-c.is-wrong:checked ~ .quiz-wrap .seg-3, #q3-d.is-wrong:checked ~ .quiz-wrap .seg-3 { background: rgba(239, 68, 68, 0.28); color: #f87171; border-color: #ef4444; }
+  #q3-u.is-unknown:checked ~ .quiz-wrap .seg-3 { background: rgba(245, 158, 11, 0.28); color: #fbbf24; border-color: #f59e0b; }
+
+  #q4-a.is-right:checked ~ .quiz-wrap .seg-4, #q4-b.is-right:checked ~ .quiz-wrap .seg-4,
+  #q4-c.is-right:checked ~ .quiz-wrap .seg-4, #q4-d.is-right:checked ~ .quiz-wrap .seg-4 { background: rgba(16, 185, 129, 0.28); color: #34d399; border-color: #10b981; }
+  #q4-a.is-wrong:checked ~ .quiz-wrap .seg-4, #q4-b.is-wrong:checked ~ .quiz-wrap .seg-4,
+  #q4-c.is-wrong:checked ~ .quiz-wrap .seg-4, #q4-d.is-wrong:checked ~ .quiz-wrap .seg-4 { background: rgba(239, 68, 68, 0.28); color: #f87171; border-color: #ef4444; }
+  #q4-u.is-unknown:checked ~ .quiz-wrap .seg-4 { background: rgba(245, 158, 11, 0.28); color: #fbbf24; border-color: #f59e0b; }
+
+  #q5-a.is-right:checked ~ .quiz-wrap .seg-5, #q5-b.is-right:checked ~ .quiz-wrap .seg-5,
+  #q5-c.is-right:checked ~ .quiz-wrap .seg-5, #q5-d.is-right:checked ~ .quiz-wrap .seg-5 { background: rgba(16, 185, 129, 0.28); color: #34d399; border-color: #10b981; }
+  #q5-a.is-wrong:checked ~ .quiz-wrap .seg-5, #q5-b.is-wrong:checked ~ .quiz-wrap .seg-5,
+  #q5-c.is-wrong:checked ~ .quiz-wrap .seg-5, #q5-d.is-wrong:checked ~ .quiz-wrap .seg-5 { background: rgba(239, 68, 68, 0.28); color: #f87171; border-color: #ef4444; }
+  #q5-u.is-unknown:checked ~ .quiz-wrap .seg-5 { background: rgba(245, 158, 11, 0.28); color: #fbbf24; border-color: #f59e0b; }
+
+  .q-panel { display: none; flex: 1; flex-direction: column; }
+  #nav-q1:checked ~ .quiz-wrap #panel-q1,
+  #nav-q2:checked ~ .quiz-wrap #panel-q2,
+  #nav-q3:checked ~ .quiz-wrap #panel-q3,
+  #nav-q4:checked ~ .quiz-wrap #panel-q4,
+  #nav-q5:checked ~ .quiz-wrap #panel-q5 { display: flex; }
+
+  .q-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .q-num { font-size: 12px; color: #94a3b8; font-weight: 700; }
+  .q-tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(56, 189, 248, 0.14);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+  }
+
+  .q-body-row {
+    display: grid;
+    grid-template-columns: 1.45fr 1fr;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .q-stem {
+    font-size: 13.5px;
+    line-height: 1.62;
+    color: #f1f5f9;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .q-body-row .q-stem { margin-bottom: 0; }
+  .q-fig {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 6px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .q-fig svg { width: 100%; height: 112px; display: block; }
+
+  .opts-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: auto;
+  }
+  .opt-card {
+    display: block;
+    background: #0f172a;
+    border: 1.5px solid #334155;
+    border-radius: 8px;
+    padding: 9px 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .opt-card:hover { border-color: #64748b; background: rgba(30, 41, 59, 0.9); }
+  .opt-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .opt-left { display: flex; align-items: center; gap: 8px; }
+  .opt-letter {
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    background: #1e293b;
+    border: 1px solid #475569;
+    color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .opt-text { font-size: 13px; color: #e2e8f0; line-height: 1.45; }
+  .opt-badge {
+    display: none;
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .opt-exp {
+    display: none;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed rgba(148, 163, 184, 0.25);
+    font-size: 12px;
+    line-height: 1.5;
+    color: #cbd5e1;
+  }
+
+  /* 已作答后展示选中项与正确项解析 */
+  #q1-a:checked ~ .quiz-wrap .opt-q1-a .opt-exp, #q1-a:checked ~ .quiz-wrap .opt-q1-a .opt-badge,
+  #q1-b:checked ~ .quiz-wrap .opt-q1-b .opt-exp, #q1-b:checked ~ .quiz-wrap .opt-q1-b .opt-badge,
+  #q1-c:checked ~ .quiz-wrap .opt-q1-c .opt-exp, #q1-c:checked ~ .quiz-wrap .opt-q1-c .opt-badge,
+  #q1-d:checked ~ .quiz-wrap .opt-q1-d .opt-exp, #q1-d:checked ~ .quiz-wrap .opt-q1-d .opt-badge,
+  #q1-a:checked ~ .quiz-wrap #panel-q1 .opt-right .opt-exp, #q1-a:checked ~ .quiz-wrap #panel-q1 .opt-right .opt-badge,
+  #q1-b:checked ~ .quiz-wrap #panel-q1 .opt-right .opt-exp, #q1-b:checked ~ .quiz-wrap #panel-q1 .opt-right .opt-badge,
+  #q1-c:checked ~ .quiz-wrap #panel-q1 .opt-right .opt-exp, #q1-c:checked ~ .quiz-wrap #panel-q1 .opt-right .opt-badge,
+  #q1-d:checked ~ .quiz-wrap #panel-q1 .opt-right .opt-exp, #q1-d:checked ~ .quiz-wrap #panel-q1 .opt-right .opt-badge,
+  #q1-u:checked ~ .quiz-wrap #panel-q1 .opt-right .opt-exp, #q1-u:checked ~ .quiz-wrap #panel-q1 .opt-right .opt-badge,
+
+  #q2-a:checked ~ .quiz-wrap .opt-q2-a .opt-exp, #q2-a:checked ~ .quiz-wrap .opt-q2-a .opt-badge,
+  #q2-b:checked ~ .quiz-wrap .opt-q2-b .opt-exp, #q2-b:checked ~ .quiz-wrap .opt-q2-b .opt-badge,
+  #q2-c:checked ~ .quiz-wrap .opt-q2-c .opt-exp, #q2-c:checked ~ .quiz-wrap .opt-q2-c .opt-badge,
+  #q2-d:checked ~ .quiz-wrap .opt-q2-d .opt-exp, #q2-d:checked ~ .quiz-wrap .opt-q2-d .opt-badge,
+  #q2-a:checked ~ .quiz-wrap #panel-q2 .opt-right .opt-exp, #q2-a:checked ~ .quiz-wrap #panel-q2 .opt-right .opt-badge,
+  #q2-b:checked ~ .quiz-wrap #panel-q2 .opt-right .opt-exp, #q2-b:checked ~ .quiz-wrap #panel-q2 .opt-right .opt-badge,
+  #q2-c:checked ~ .quiz-wrap #panel-q2 .opt-right .opt-exp, #q2-c:checked ~ .quiz-wrap #panel-q2 .opt-right .opt-badge,
+  #q2-d:checked ~ .quiz-wrap #panel-q2 .opt-right .opt-exp, #q2-d:checked ~ .quiz-wrap #panel-q2 .opt-right .opt-badge,
+  #q2-u:checked ~ .quiz-wrap #panel-q2 .opt-right .opt-exp, #q2-u:checked ~ .quiz-wrap #panel-q2 .opt-right .opt-badge,
+
+  #q3-a:checked ~ .quiz-wrap .opt-q3-a .opt-exp, #q3-a:checked ~ .quiz-wrap .opt-q3-a .opt-badge,
+  #q3-b:checked ~ .quiz-wrap .opt-q3-b .opt-exp, #q3-b:checked ~ .quiz-wrap .opt-q3-b .opt-badge,
+  #q3-c:checked ~ .quiz-wrap .opt-q3-c .opt-exp, #q3-c:checked ~ .quiz-wrap .opt-q3-c .opt-badge,
+  #q3-d:checked ~ .quiz-wrap .opt-q3-d .opt-exp, #q3-d:checked ~ .quiz-wrap .opt-q3-d .opt-badge,
+  #q3-a:checked ~ .quiz-wrap #panel-q3 .opt-right .opt-exp, #q3-a:checked ~ .quiz-wrap #panel-q3 .opt-right .opt-badge,
+  #q3-b:checked ~ .quiz-wrap #panel-q3 .opt-right .opt-exp, #q3-b:checked ~ .quiz-wrap #panel-q3 .opt-right .opt-badge,
+  #q3-c:checked ~ .quiz-wrap #panel-q3 .opt-right .opt-exp, #q3-c:checked ~ .quiz-wrap #panel-q3 .opt-right .opt-badge,
+  #q3-d:checked ~ .quiz-wrap #panel-q3 .opt-right .opt-exp, #q3-d:checked ~ .quiz-wrap #panel-q3 .opt-right .opt-badge,
+  #q3-u:checked ~ .quiz-wrap #panel-q3 .opt-right .opt-exp, #q3-u:checked ~ .quiz-wrap #panel-q3 .opt-right .opt-badge,
+
+  #q4-a:checked ~ .quiz-wrap .opt-q4-a .opt-exp, #q4-a:checked ~ .quiz-wrap .opt-q4-a .opt-badge,
+  #q4-b:checked ~ .quiz-wrap .opt-q4-b .opt-exp, #q4-b:checked ~ .quiz-wrap .opt-q4-b .opt-badge,
+  #q4-c:checked ~ .quiz-wrap .opt-q4-c .opt-exp, #q4-c:checked ~ .quiz-wrap .opt-q4-c .opt-badge,
+  #q4-d:checked ~ .quiz-wrap .opt-q4-d .opt-exp, #q4-d:checked ~ .quiz-wrap .opt-q4-d .opt-badge,
+  #q4-a:checked ~ .quiz-wrap #panel-q4 .opt-right .opt-exp, #q4-a:checked ~ .quiz-wrap #panel-q4 .opt-right .opt-badge,
+  #q4-b:checked ~ .quiz-wrap #panel-q4 .opt-right .opt-exp, #q4-b:checked ~ .quiz-wrap #panel-q4 .opt-right .opt-badge,
+  #q4-c:checked ~ .quiz-wrap #panel-q4 .opt-right .opt-exp, #q4-c:checked ~ .quiz-wrap #panel-q4 .opt-right .opt-badge,
+  #q4-d:checked ~ .quiz-wrap #panel-q4 .opt-right .opt-exp, #q4-d:checked ~ .quiz-wrap #panel-q4 .opt-right .opt-badge,
+  #q4-u:checked ~ .quiz-wrap #panel-q4 .opt-right .opt-exp, #q4-u:checked ~ .quiz-wrap #panel-q4 .opt-right .opt-badge,
+
+  #q5-a:checked ~ .quiz-wrap .opt-q5-a .opt-exp, #q5-a:checked ~ .quiz-wrap .opt-q5-a .opt-badge,
+  #q5-b:checked ~ .quiz-wrap .opt-q5-b .opt-exp, #q5-b:checked ~ .quiz-wrap .opt-q5-b .opt-badge,
+  #q5-c:checked ~ .quiz-wrap .opt-q5-c .opt-exp, #q5-c:checked ~ .quiz-wrap .opt-q5-c .opt-badge,
+  #q5-d:checked ~ .quiz-wrap .opt-q5-d .opt-exp, #q5-d:checked ~ .quiz-wrap .opt-q5-d .opt-badge,
+  #q5-a:checked ~ .quiz-wrap #panel-q5 .opt-right .opt-exp, #q5-a:checked ~ .quiz-wrap #panel-q5 .opt-right .opt-badge,
+  #q5-b:checked ~ .quiz-wrap #panel-q5 .opt-right .opt-exp, #q5-b:checked ~ .quiz-wrap #panel-q5 .opt-right .opt-badge,
+  #q5-c:checked ~ .quiz-wrap #panel-q5 .opt-right .opt-exp, #q5-c:checked ~ .quiz-wrap #panel-q5 .opt-right .opt-badge,
+  #q5-d:checked ~ .quiz-wrap #panel-q5 .opt-right .opt-exp, #q5-d:checked ~ .quiz-wrap #panel-q5 .opt-right .opt-badge,
+  #q5-u:checked ~ .quiz-wrap #panel-q5 .opt-right .opt-exp, #q5-u:checked ~ .quiz-wrap #panel-q5 .opt-right .opt-badge {
+    display: block;
+  }
+
+  .opt-right .opt-badge { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+  .opt-wrong .opt-badge { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+
+  #q1-a:checked ~ .quiz-wrap #panel-q1 .opt-right, #q1-b:checked ~ .quiz-wrap #panel-q1 .opt-right,
+  #q1-c:checked ~ .quiz-wrap #panel-q1 .opt-right, #q1-d:checked ~ .quiz-wrap #panel-q1 .opt-right, #q1-u:checked ~ .quiz-wrap #panel-q1 .opt-right,
+  #q2-a:checked ~ .quiz-wrap #panel-q2 .opt-right, #q2-b:checked ~ .quiz-wrap #panel-q2 .opt-right,
+  #q2-c:checked ~ .quiz-wrap #panel-q2 .opt-right, #q2-d:checked ~ .quiz-wrap #panel-q2 .opt-right, #q2-u:checked ~ .quiz-wrap #panel-q2 .opt-right,
+  #q3-a:checked ~ .quiz-wrap #panel-q3 .opt-right, #q3-b:checked ~ .quiz-wrap #panel-q3 .opt-right,
+  #q3-c:checked ~ .quiz-wrap #panel-q3 .opt-right, #q3-d:checked ~ .quiz-wrap #panel-q3 .opt-right, #q3-u:checked ~ .quiz-wrap #panel-q3 .opt-right,
+  #q4-a:checked ~ .quiz-wrap #panel-q4 .opt-right, #q4-b:checked ~ .quiz-wrap #panel-q4 .opt-right,
+  #q4-c:checked ~ .quiz-wrap #panel-q4 .opt-right, #q4-d:checked ~ .quiz-wrap #panel-q4 .opt-right, #q4-u:checked ~ .quiz-wrap #panel-q4 .opt-right,
+  #q5-a:checked ~ .quiz-wrap #panel-q5 .opt-right, #q5-b:checked ~ .quiz-wrap #panel-q5 .opt-right,
+  #q5-c:checked ~ .quiz-wrap #panel-q5 .opt-right, #q5-d:checked ~ .quiz-wrap #panel-q5 .opt-right, #q5-u:checked ~ .quiz-wrap #panel-q5 .opt-right {
+    border-color: #10b981;
+    background: rgba(16, 185, 129, 0.08);
+  }
+
+  /* 写一道锁一道：纯 CSS pointer-events: none 锁定本题 */
+  #q1-a:checked ~ .quiz-wrap #panel-q1 .opt-card, #q1-b:checked ~ .quiz-wrap #panel-q1 .opt-card,
+  #q1-c:checked ~ .quiz-wrap #panel-q1 .opt-card, #q1-d:checked ~ .quiz-wrap #panel-q1 .opt-card,
+  #q1-u:checked ~ .quiz-wrap #panel-q1 .opt-card,
+  #q1-a:checked ~ .quiz-wrap #panel-q1 .unknown-btn, #q1-b:checked ~ .quiz-wrap #panel-q1 .unknown-btn,
+  #q1-c:checked ~ .quiz-wrap #panel-q1 .unknown-btn, #q1-d:checked ~ .quiz-wrap #panel-q1 .unknown-btn,
+  #q1-u:checked ~ .quiz-wrap #panel-q1 .unknown-btn,
+  #q2-a:checked ~ .quiz-wrap #panel-q2 .opt-card, #q2-b:checked ~ .quiz-wrap #panel-q2 .opt-card,
+  #q2-c:checked ~ .quiz-wrap #panel-q2 .opt-card, #q2-d:checked ~ .quiz-wrap #panel-q2 .opt-card,
+  #q2-u:checked ~ .quiz-wrap #panel-q2 .opt-card,
+  #q2-a:checked ~ .quiz-wrap #panel-q2 .unknown-btn, #q2-b:checked ~ .quiz-wrap #panel-q2 .unknown-btn,
+  #q2-c:checked ~ .quiz-wrap #panel-q2 .unknown-btn, #q2-d:checked ~ .quiz-wrap #panel-q2 .unknown-btn,
+  #q2-u:checked ~ .quiz-wrap #panel-q2 .unknown-btn,
+  #q3-a:checked ~ .quiz-wrap #panel-q3 .opt-card, #q3-b:checked ~ .quiz-wrap #panel-q3 .opt-card,
+  #q3-c:checked ~ .quiz-wrap #panel-q3 .opt-card, #q3-d:checked ~ .quiz-wrap #panel-q3 .opt-card,
+  #q3-u:checked ~ .quiz-wrap #panel-q3 .opt-card,
+  #q3-a:checked ~ .quiz-wrap #panel-q3 .unknown-btn, #q3-b:checked ~ .quiz-wrap #panel-q3 .unknown-btn,
+  #q3-c:checked ~ .quiz-wrap #panel-q3 .unknown-btn, #q3-d:checked ~ .quiz-wrap #panel-q3 .unknown-btn,
+  #q3-u:checked ~ .quiz-wrap #panel-q3 .unknown-btn,
+  #q4-a:checked ~ .quiz-wrap #panel-q4 .opt-card, #q4-b:checked ~ .quiz-wrap #panel-q4 .opt-card,
+  #q4-c:checked ~ .quiz-wrap #panel-q4 .opt-card, #q4-d:checked ~ .quiz-wrap #panel-q4 .opt-card,
+  #q4-u:checked ~ .quiz-wrap #panel-q4 .opt-card,
+  #q4-a:checked ~ .quiz-wrap #panel-q4 .unknown-btn, #q4-b:checked ~ .quiz-wrap #panel-q4 .unknown-btn,
+  #q4-c:checked ~ .quiz-wrap #panel-q4 .unknown-btn, #q4-d:checked ~ .quiz-wrap #panel-q4 .unknown-btn,
+  #q4-u:checked ~ .quiz-wrap #panel-q4 .unknown-btn,
+  #q5-a:checked ~ .quiz-wrap #panel-q5 .opt-card, #q5-b:checked ~ .quiz-wrap #panel-q5 .opt-card,
+  #q5-c:checked ~ .quiz-wrap #panel-q5 .opt-card, #q5-d:checked ~ .quiz-wrap #panel-q5 .opt-card,
+  #q5-u:checked ~ .quiz-wrap #panel-q5 .opt-card,
+  #q5-a:checked ~ .quiz-wrap #panel-q5 .unknown-btn, #q5-b:checked ~ .quiz-wrap #panel-q5 .unknown-btn,
+  #q5-c:checked ~ .quiz-wrap #panel-q5 .unknown-btn, #q5-d:checked ~ .quiz-wrap #panel-q5 .unknown-btn,
+  #q5-u:checked ~ .quiz-wrap #panel-q5 .unknown-btn {
+    pointer-events: none;
+    cursor: default;
+  }
+
+  .unknown-btn {
+    padding: 5px 11px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    background: rgba(245, 158, 11, 0.14);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.38);
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .unknown-btn:hover { background: rgba(245, 158, 11, 0.25); }
+  .unknown-btn .locked-ans-txt, .unknown-btn .locked-unk-txt { display: none; }
+
+  #q1-a:checked ~ .quiz-wrap #panel-q1 .unknown-btn .unk-default-txt, #q1-b:checked ~ .quiz-wrap #panel-q1 .unknown-btn .unk-default-txt,
+  #q1-c:checked ~ .quiz-wrap #panel-q1 .unknown-btn .unk-default-txt, #q1-d:checked ~ .quiz-wrap #panel-q1 .unknown-btn .unk-default-txt,
+  #q1-u:checked ~ .quiz-wrap #panel-q1 .unknown-btn .unk-default-txt,
+  #q2-a:checked ~ .quiz-wrap #panel-q2 .unknown-btn .unk-default-txt, #q2-b:checked ~ .quiz-wrap #panel-q2 .unknown-btn .unk-default-txt,
+  #q2-c:checked ~ .quiz-wrap #panel-q2 .unknown-btn .unk-default-txt, #q2-d:checked ~ .quiz-wrap #panel-q2 .unknown-btn .unk-default-txt,
+  #q2-u:checked ~ .quiz-wrap #panel-q2 .unknown-btn .unk-default-txt,
+  #q3-a:checked ~ .quiz-wrap #panel-q3 .unknown-btn .unk-default-txt, #q3-b:checked ~ .quiz-wrap #panel-q3 .unknown-btn .unk-default-txt,
+  #q3-c:checked ~ .quiz-wrap #panel-q3 .unknown-btn .unk-default-txt, #q3-d:checked ~ .quiz-wrap #panel-q3 .unknown-btn .unk-default-txt,
+  #q3-u:checked ~ .quiz-wrap #panel-q3 .unknown-btn .unk-default-txt,
+  #q4-a:checked ~ .quiz-wrap #panel-q4 .unknown-btn .unk-default-txt, #q4-b:checked ~ .quiz-wrap #panel-q4 .unknown-btn .unk-default-txt,
+  #q4-c:checked ~ .quiz-wrap #panel-q4 .unknown-btn .unk-default-txt, #q4-d:checked ~ .quiz-wrap #panel-q4 .unknown-btn .unk-default-txt,
+  #q4-u:checked ~ .quiz-wrap #panel-q4 .unknown-btn .unk-default-txt,
+  #q5-a:checked ~ .quiz-wrap #panel-q5 .unknown-btn .unk-default-txt, #q5-b:checked ~ .quiz-wrap #panel-q5 .unknown-btn .unk-default-txt,
+  #q5-c:checked ~ .quiz-wrap #panel-q5 .unknown-btn .unk-default-txt, #q5-d:checked ~ .quiz-wrap #panel-q5 .unknown-btn .unk-default-txt,
+  #q5-u:checked ~ .quiz-wrap #panel-q5 .unknown-btn .unk-default-txt { display: none; }
+
+  #q1-a:checked ~ .quiz-wrap #panel-q1 .unknown-btn .locked-ans-txt, #q1-b:checked ~ .quiz-wrap #panel-q1 .unknown-btn .locked-ans-txt,
+  #q1-c:checked ~ .quiz-wrap #panel-q1 .unknown-btn .locked-ans-txt, #q1-d:checked ~ .quiz-wrap #panel-q1 .unknown-btn .locked-ans-txt,
+  #q2-a:checked ~ .quiz-wrap #panel-q2 .unknown-btn .locked-ans-txt, #q2-b:checked ~ .quiz-wrap #panel-q2 .unknown-btn .locked-ans-txt,
+  #q2-c:checked ~ .quiz-wrap #panel-q2 .unknown-btn .locked-ans-txt, #q2-d:checked ~ .quiz-wrap #panel-q2 .unknown-btn .locked-ans-txt,
+  #q3-a:checked ~ .quiz-wrap #panel-q3 .unknown-btn .locked-ans-txt, #q3-b:checked ~ .quiz-wrap #panel-q3 .unknown-btn .locked-ans-txt,
+  #q3-c:checked ~ .quiz-wrap #panel-q3 .unknown-btn .locked-ans-txt, #q3-d:checked ~ .quiz-wrap #panel-q3 .unknown-btn .locked-ans-txt,
+  #q4-a:checked ~ .quiz-wrap #panel-q4 .unknown-btn .locked-ans-txt, #q4-b:checked ~ .quiz-wrap #panel-q4 .unknown-btn .locked-ans-txt,
+  #q4-c:checked ~ .quiz-wrap #panel-q4 .unknown-btn .locked-ans-txt, #q4-d:checked ~ .quiz-wrap #panel-q4 .unknown-btn .locked-ans-txt,
+  #q5-a:checked ~ .quiz-wrap #panel-q5 .unknown-btn .locked-ans-txt, #q5-b:checked ~ .quiz-wrap #panel-q5 .unknown-btn .locked-ans-txt,
+  #q5-c:checked ~ .quiz-wrap #panel-q5 .unknown-btn .locked-ans-txt, #q5-d:checked ~ .quiz-wrap #panel-q5 .unknown-btn .locked-ans-txt {
+    display: inline;
+    color: #94a3b8;
+  }
+  #q1-u:checked ~ .quiz-wrap #panel-q1 .unknown-btn .locked-unk-txt,
+  #q2-u:checked ~ .quiz-wrap #panel-q2 .unknown-btn .locked-unk-txt,
+  #q3-u:checked ~ .quiz-wrap #panel-q3 .unknown-btn .locked-unk-txt,
+  #q4-u:checked ~ .quiz-wrap #panel-q4 .unknown-btn .locked-unk-txt,
+  #q5-u:checked ~ .quiz-wrap #panel-q5 .unknown-btn .locked-unk-txt {
+    display: inline;
+    color: #fbbf24;
+  }
+
+  #q1-a.is-wrong:checked ~ .quiz-wrap .opt-q1-a, #q1-b.is-wrong:checked ~ .quiz-wrap .opt-q1-b,
+  #q1-c.is-wrong:checked ~ .quiz-wrap .opt-q1-c, #q1-d.is-wrong:checked ~ .quiz-wrap .opt-q1-d,
+  #q2-a.is-wrong:checked ~ .quiz-wrap .opt-q2-a, #q2-b.is-wrong:checked ~ .quiz-wrap .opt-q2-b,
+  #q2-c.is-wrong:checked ~ .quiz-wrap .opt-q2-c, #q2-d.is-wrong:checked ~ .quiz-wrap .opt-q2-d,
+  #q3-a.is-wrong:checked ~ .quiz-wrap .opt-q3-a, #q3-b.is-wrong:checked ~ .quiz-wrap .opt-q3-b,
+  #q3-c.is-wrong:checked ~ .quiz-wrap .opt-q3-c, #q3-d.is-wrong:checked ~ .quiz-wrap .opt-q3-d,
+  #q4-a.is-wrong:checked ~ .quiz-wrap .opt-q4-a, #q4-b.is-wrong:checked ~ .quiz-wrap .opt-q4-b,
+  #q4-c.is-wrong:checked ~ .quiz-wrap .opt-q4-c, #q4-d.is-wrong:checked ~ .quiz-wrap .opt-q4-d,
+  #q5-a.is-wrong:checked ~ .quiz-wrap .opt-q5-a, #q5-b.is-wrong:checked ~ .quiz-wrap .opt-q5-b,
+  #q5-c.is-wrong:checked ~ .quiz-wrap .opt-q5-c, #q5-d.is-wrong:checked ~ .quiz-wrap .opt-q5-d {
+    border-color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
+  }
+
+  .foot-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid #334155;
+  }
+  .nav-btn {
+    padding: 5px 13px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    background: #334155;
+    color: #e2e8f0;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .nav-btn:hover { background: #475569; }
+  .nav-btn.primary { background: #0284c7; color: #fff; }
+  .nav-btn.primary:hover { background: #0369a1; }
+
+  /* 本地错题本面板 */
+  .mistake-panel {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 12px 16px;
+  }
+  .mistake-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #fbbf24;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .mistake-empty { font-size: 12px; color: #94a3b8; }
+  .mistake-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .mistake-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    font-size: 12px;
+    color: #e2e8f0;
+  }
+  .mistake-jump {
+    padding: 2px 8px;
+    border-radius: 5px;
+    border: 1px solid #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+    color: #38bdf8;
+    font-size: 11.5px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  i { font-family: "Times New Roman", Times, serif; }
+  sup, sub { font-size: 75%; line-height: 0; position: relative; vertical-align: baseline; }
+  sup { top: -0.4em; }
+  sub { bottom: -0.22em; }
+  .frac {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    vertical-align: middle;
+    margin: 0 2px;
+    font-size: 0.92em;
+    line-height: 1.1;
+  }
+  .frac .num { border-bottom: 1px solid currentColor; padding: 0 3px 1px; }
+  .frac .den { padding: 1px 3px 0; }
+</style>
+</head>
+<body>
+  <div class="page-shell">
+    <div class="quiz-header">
+      <div class="quiz-title">📝 随堂变式测验 · 离线自测与错题本</div>
+      <div class="header-actions">
+        <span class="live-summary" id="quiz-score-summary">进度 0/1 · 正确 0 · 错题 0</span>
+        <a class="header-btn" href="./board.html">← 返回看板</a>
+        <button type="button" class="header-btn danger" id="btn-reset-quiz">重置作答</button>
+      </div>
+    </div>
+
+    <!-- 1. 切题导航状态机 Radio -->
+    <input type="radio" name="nav" id="nav-q1" checked>
+    <input type="radio" name="nav" id="nav-q2">
+    <input type="radio" name="nav" id="nav-q3">
+    <input type="radio" name="nav" id="nav-q4">
+    <input type="radio" name="nav" id="nav-q5">
+
+    <!-- 2. 每题作答状态机 Radio（A/B/C/D + u=此题不会） -->
+    <input type="radio" name="q1" id="q1-a" class="ans-radio is-right">
+    <input type="radio" name="q1" id="q1-b" class="ans-radio is-wrong">
+    <input type="radio" name="q1" id="q1-c" class="ans-radio is-wrong">
+    <input type="radio" name="q1" id="q1-d" class="ans-radio is-wrong">
+    <input type="radio" name="q1" id="q1-u" class="ans-radio is-unknown">
+
+    <div class="quiz-wrap">
+      <div class="top-bar">
+        <div class="seg-bar">
+          <label for="nav-q1" class="seg-item seg-1">第 1 题</label>
+        </div>
+      </div>
+
+      <div class="q-panel" id="panel-q1">
+        <div class="q-meta">
+          <span class="q-num">第 1 / 1 题</span>
+          <span class="q-tag">示例考点 · 偏置电路分析</span>
+        </div>
+        <div class="q-body-row">
+          <div class="q-stem">
+            在图示分压式偏置共射放大电路中，若忽略基极分流影响，发射极电阻 <i>R</i><sub>e</sub> 引入的直流负反馈主要作用是什么？
+          </div>
+          <div class="q-fig">
+            <svg viewBox="0 0 260 110">
+              <line x1="130" y1="14" x2="130" y2="34" stroke="#e2e8f0" stroke-width="1.8"/>
+              <rect x="123" y="34" width="14" height="34" fill="#1e293b" stroke="#38bdf8" stroke-width="1.8"/>
+              <text x="145" y="55" fill="#38bdf8" font-size="12" font-family="Times New Roman, serif" font-style="italic">R<tspan dy="3" font-size="9" font-style="normal">e</tspan></text>
+              <line x1="130" y1="68" x2="130" y2="90" stroke="#e2e8f0" stroke-width="1.8"/>
+              <line x1="118" y1="90" x2="142" y2="90" stroke="#e2e8f0" stroke-width="1.8"/>
+              <line x1="122" y1="95" x2="138" y2="95" stroke="#e2e8f0" stroke-width="1.8"/>
+              <line x1="126" y1="100" x2="134" y2="100" stroke="#e2e8f0" stroke-width="1.8"/>
+            </svg>
+          </div>
+        </div>
+        <div class="opts-list">
+          <label for="q1-a" class="opt-card opt-q1-a opt-right">
+            <div class="opt-head">
+              <div class="opt-left">
+                <span class="opt-letter">A</span>
+                <span class="opt-text">稳定静态工作点 <i>Q</i>，抑制温度漂移</span>
+              </div>
+              <span class="opt-badge">✓ 正确</span>
+            </div>
+            <div class="opt-exp">✅ <b>解析</b>：温度升高使 <i>I</i><sub>CQ</sub> 增大时，<i>I</i><sub>EQ</sub><i>R</i><sub>e</sub> 抬升，进而压低 <i>U</i><sub>BEQ</sub>，抑制 <i>I</i><sub>CQ</sub> 漂移。</div>
+          </label>
+          <label for="q1-b" class="opt-card opt-q1-b opt-wrong">
+            <div class="opt-head">
+              <div class="opt-left">
+                <span class="opt-letter">B</span>
+                <span class="opt-text">显著提高中频电压放大倍数 <i>A</i><sub>u</sub></span>
+              </div>
+              <span class="opt-badge">✕ 误选</span>
+            </div>
+            <div class="opt-exp">❌ <b>诊断</b>：未加旁路电容时 <i>R</i><sub>e</sub> 会引入交流负反馈，反而降低电压放大倍数。</div>
+          </label>
+          <label for="q1-c" class="opt-card opt-q1-c opt-wrong">
+            <div class="opt-head">
+              <div class="opt-left">
+                <span class="opt-letter">C</span>
+                <span class="opt-text">大幅降低放大电路输入电阻 <i>R</i><sub>i</sub></span>
+              </div>
+              <span class="opt-badge">✕ 误选</span>
+            </div>
+            <div class="opt-exp">❌ <b>诊断</b>：串联负反馈电阻 <i>R</i><sub>e</sub> 折算到基极会增大而非降低输入电阻。</div>
+          </label>
+          <label for="q1-d" class="opt-card opt-q1-d opt-wrong">
+            <div class="opt-head">
+              <div class="opt-left">
+                <span class="opt-letter">D</span>
+                <span class="opt-text">消除电源纹波并提升最大输出功率</span>
+              </div>
+              <span class="opt-badge">✕ 误选</span>
+            </div>
+            <div class="opt-exp">❌ <b>诊断</b>：<i>R</i><sub>e</sub> 会分担直流压降并减小动态摆幅，并非用于提升输出功率。</div>
+          </label>
+        </div>
+        <div class="foot-nav">
+          <span></span>
+          <label for="q1-u" class="unknown-btn">
+            <span class="unk-default-txt">❓ 此题不会（看解析并加入错题本）</span>
+            <span class="locked-ans-txt">🔒 本题已锁定并存入本地浏览器记录</span>
+            <span class="locked-unk-txt">🟧 已标为「不会」并加入本地错题本</span>
+          </label>
+          <span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mistake-panel">
+      <div class="mistake-title">
+        <span>📒 本地错题本（自动持久化至 localStorage）</span>
+        <span id="mistake-count" style="font-size:12px;color:#cbd5e1;">0 题</span>
+      </div>
+      <div id="mistake-empty" class="mistake-empty">当前暂无错题或「此题不会」记录，开始作答后会自动沉淀到这里。</div>
+      <ul id="mistake-list" class="mistake-list"></ul>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    const QUIZ_ID = 'stem_notes_quiz_demo_v1';
+    const STORAGE_KEY = 'stem_notes_quiz_state_' + QUIZ_ID;
+
+    let state = { nav: 'nav-q1', answers: {}, mistakes: [] };
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw && raw.startsWith('{')) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          state.nav = parsed.nav || 'nav-q1';
+          state.answers = parsed.answers || {};
+          state.mistakes = Array.isArray(parsed.mistakes) ? parsed.mistakes : [];
+        }
+      }
+    } catch (e) {}
+
+    document.querySelectorAll('label[for]').forEach(function(lbl) {
+      lbl.addEventListener('mousedown', function(e) { e.preventDefault(); });
+    });
+
+    function getQuestionMeta(qName) {
+      const panel = document.getElementById('panel-' + qName);
+      if (!panel) return { tag: qName.toUpperCase(), excerpt: '' };
+      const tagEl = panel.querySelector('.q-tag');
+      const stemEl = panel.querySelector('.q-stem');
+      const tag = tagEl ? tagEl.textContent.trim() : qName.toUpperCase();
+      const excerpt = stemEl ? stemEl.textContent.replace(/\s+/g, ' ').trim().slice(0, 46) : '';
+      return { tag: tag, excerpt: excerpt };
+    }
+
+    function saveState() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+    }
+
+    function renderSummaryAndMistakes() {
+      const total = document.querySelectorAll('.q-panel').length;
+      let answered = 0;
+      let right = 0;
+      let wrongOrUnknown = 0;
+      const mistakeItems = [];
+
+      Object.keys(state.answers).sort().forEach(function(qName) {
+        const entry = state.answers[qName];
+        if (!entry || !entry.id) return;
+        answered += 1;
+        if (entry.status === 'right') {
+          right += 1;
+        } else {
+          wrongOrUnknown += 1;
+          mistakeItems.push({ qName: qName, status: entry.status, tag: entry.tag, excerpt: entry.excerpt });
+        }
+      });
+
+      state.mistakes = mistakeItems;
+      const summaryEl = document.getElementById('quiz-score-summary');
+      if (summaryEl) {
+        summaryEl.textContent = '进度 ' + answered + '/' + total + ' · 正确 ' + right + ' · 错/不会 ' + wrongOrUnknown;
+      }
+      const countEl = document.getElementById('mistake-count');
+      if (countEl) countEl.textContent = mistakeItems.length + ' 题';
+
+      const emptyEl = document.getElementById('mistake-empty');
+      const listEl = document.getElementById('mistake-list');
+      if (!listEl || !emptyEl) return;
+      listEl.innerHTML = '';
+      if (mistakeItems.length === 0) {
+        emptyEl.style.display = 'block';
+        return;
+      }
+      emptyEl.style.display = 'none';
+      mistakeItems.forEach(function(item) {
+        const li = document.createElement('li');
+        li.className = 'mistake-item';
+        const label = document.createElement('span');
+        const prefix = item.status === 'unknown' ? '🟧 不会' : '❌ 答错';
+        label.textContent = prefix + ' · ' + item.qName.toUpperCase() + ' [' + item.tag + '] ' + item.excerpt;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'mistake-jump';
+        btn.textContent = '跳转复盘';
+        btn.addEventListener('click', function() {
+          const navRadio = document.getElementById('nav-' + item.qName);
+          if (navRadio) {
+            navRadio.checked = true;
+            state.nav = navRadio.id;
+            saveState();
+          }
+        });
+        li.appendChild(label);
+        li.appendChild(btn);
+        listEl.appendChild(li);
+      });
+    }
+
+    function applyState() {
+      const navEl = document.getElementById(state.nav);
+      if (navEl) navEl.checked = true;
+      Object.keys(state.answers).forEach(function(qName) {
+        const entry = state.answers[qName];
+        if (entry && entry.id) {
+          const radio = document.getElementById(entry.id);
+          if (radio) radio.checked = true;
+        }
+      });
+      renderSummaryAndMistakes();
+    }
+
+    document.querySelectorAll('input.ans-radio').forEach(function(radio) {
+      radio.addEventListener('click', function(e) {
+        const prev = state.answers[this.name];
+        if (prev && prev.id && prev.id !== this.id) {
+          e.preventDefault();
+          const prevEl = document.getElementById(prev.id);
+          if (prevEl) prevEl.checked = true;
+          return false;
+        }
+      });
+      radio.addEventListener('change', function() {
+        const prev = state.answers[this.name];
+        if (prev && prev.id && prev.id !== this.id) {
+          const prevEl = document.getElementById(prev.id);
+          if (prevEl) prevEl.checked = true;
+          return;
+        }
+        if (this.checked) {
+          const status = this.classList.contains('is-right')
+            ? 'right'
+            : (this.classList.contains('is-unknown') ? 'unknown' : 'wrong');
+          const meta = getQuestionMeta(this.name);
+          state.answers[this.name] = {
+            id: this.id,
+            status: status,
+            tag: meta.tag,
+            excerpt: meta.excerpt,
+            updatedAt: Date.now()
+          };
+          renderSummaryAndMistakes();
+          saveState();
+        }
+      });
+    });
+
+    document.querySelectorAll('input[name="nav"]').forEach(function(radio) {
+      radio.addEventListener('change', function() {
+        if (this.checked) {
+          state.nav = this.id;
+          saveState();
+        }
+      });
+    });
+
+    const resetBtn = document.getElementById('btn-reset-quiz');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function() {
+        state = { nav: 'nav-q1', answers: {}, mistakes: [] };
+        document.querySelectorAll('input.ans-radio').forEach(function(r) { r.checked = false; });
+        const firstNav = document.getElementById('nav-q1');
+        if (firstNav) firstNav.checked = true;
+        try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+        renderSummaryAndMistakes();
+      });
+    }
+
+    applyState();
+  })();
+  </script>
+</body>
+</html>

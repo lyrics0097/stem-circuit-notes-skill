@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📐 国标矢量电路图 / 纯几何示意图</title>
+<style>
+  /* ==========================================================================
+     stem-notes-zh 标准高清矢量电路图 / 几何图模板 (svg_diagram_template.html)
+     核心规范（GB/T 4728 中国国标）：
+     1. 电阻必须使用矩形框 (<rect>)，严禁使用美式锯齿折线；
+     2. <svg> 内部严禁出现 <i>/<b>/<sub>/<sup>/<span>/<div> 等 HTML 标签；
+        斜体用 font-style="italic"，上下标用 <tspan dy="3" font-size="9">...<tspan dy="-3">；
+     3. 单条 <text> 汉字 <= 8 字，全图 <svg> 汉字 <= 24 字，严禁文字坐标碰撞；
+     4. 元件参数与图例说明统一写在画布下方的 .legend-bar 区域，严禁侧边文字栏。
+     ========================================================================== */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%;
+    min-height: 100vh;
+    background: #0f172a;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #f8fafc;
+    padding: 16px;
+  }
+  .diagram-page {
+    max-width: 780px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .diagram-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+  }
+  .diagram-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #f1f5f9;
+  }
+  .back-link {
+    font-size: 12px;
+    font-weight: 600;
+    color: #38bdf8;
+    text-decoration: none;
+    padding: 3px 9px;
+    border-radius: 6px;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    background: rgba(56, 189, 248, 0.1);
+    white-space: nowrap;
+  }
+  .back-link:hover { background: rgba(56, 189, 248, 0.2); }
+  .canvas-box {
+    width: 100%;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  svg {
+    width: 100%;
+    height: auto;
+    max-width: 720px;
+    display: block;
+  }
+  .legend-bar {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: #cbd5e1;
+  }
+  .legend-bar strong { color: #f8fafc; }
+  .legend-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .legend-pill {
+    font-size: 11.5px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    color: #e2e8f0;
+  }
+  i { font-family: "Times New Roman", Times, serif; }
+  sup, sub { font-size: 75%; line-height: 0; position: relative; vertical-align: baseline; }
+  sup { top: -0.4em; }
+  sub { bottom: -0.22em; }
+</style>
+</head>
+<body>
+  <div class="diagram-page">
+    <div class="diagram-header">
+      <div class="diagram-title">📐 图 1：国标 GB/T 4728 矢量电路示例</div>
+      <a class="back-link" href="../board.html">← 返回复习看板</a>
+    </div>
+
+    <div class="canvas-box">
+      <svg viewBox="0 0 640 260" preserveAspectRatio="xMidYMid meet" role="img" aria-label="GB/T 4728 电路图">
+        <defs>
+          <marker id="arr-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#38bdf8"/>
+          </marker>
+          <marker id="arr-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#34d399"/>
+          </marker>
+          <marker id="arr-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#f87171"/>
+          </marker>
+          <marker id="arr-yellow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#fbbf24"/>
+          </marker>
+        </defs>
+
+        <!-- GB/T 4728 常用原语参考：
+             1) 竖直矩形电阻: <rect x="cx-7" y="y0" width="14" height="40" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+             2) 水平矩形电阻: <rect x="x0" y="cy-7" width="40" height="14" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+             3) 平行板电容:   两条间隔 6px 的平行线段
+             4) 三横线接地:   y, y+5, y+10 宽度递减 (24px, 16px, 8px)
+             5) 实心节点:     <circle cx="x" cy="y" r="3.2" fill="#e2e8f0"/>
+             6) NPN 三极管:   圆圈 + 竖直基极短杠 + 上斜集电极 + 下斜带向外箭头发射极
+        -->
+
+        <!-- 顶电源线 -->
+        <line x1="200" y1="36" x2="440" y2="36" stroke="#f87171" stroke-width="2"/>
+        <circle cx="320" cy="36" r="3.5" fill="#f87171"/>
+        <text x="320" y="24" fill="#f87171" font-size="13" font-weight="bold" text-anchor="middle">
+          +<tspan font-family="Times New Roman, serif" font-style="italic">V</tspan><tspan dy="3" font-size="9">CC</tspan>
+        </text>
+
+        <!-- 国标矩形电阻示例 -->
+        <line x1="320" y1="36" x2="320" y2="66" stroke="#e2e8f0" stroke-width="2"/>
+        <rect x="313" y="66" width="14" height="44" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+        <text x="340" y="92" fill="#38bdf8" font-size="13" font-weight="bold" text-anchor="start">
+          <tspan font-family="Times New Roman, serif" font-style="italic">R</tspan><tspan dy="3" font-size="9">c</tspan>
+        </text>
+        <line x1="320" y1="110" x2="320" y2="195" stroke="#e2e8f0" stroke-width="2"/>
+
+        <!-- 国标三横线接地示例 -->
+        <line x1="306" y1="195" x2="334" y2="195" stroke="#e2e8f0" stroke-width="2"/>
+        <line x1="311" y1="201" x2="329" y2="201" stroke="#e2e8f0" stroke-width="2"/>
+        <line x1="316" y1="207" x2="324" y2="207" stroke="#e2e8f0" stroke-width="2"/>
+      </svg>
+    </div>
+
+    <div class="legend-bar">
+      <div><strong>图例说明：</strong>采用中国国标 GB/T 4728 符号体系（矩形电阻、平行板电容、三横线接地与实心电气节点）。</div>
+      <div class="legend-tags">
+        <span class="legend-pill"><i>V</i><sub>CC</sub>：直流供电电源</span>
+        <span class="legend-pill"><i>R</i><sub>c</sub>：集电极负载电阻</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STEM Study Review Board</title>
+<style>
+  /* ==========================================================================
+     stem-notes-en Three-in-One Study Review Board Template (board_template.html)
+     1. 100% static HTML DOM pre-rendered tabs & pure-CSS checkbox flashcards
+     2. Progressive localStorage flip persistence in modern browsers
+     3. Print-grade HTML typography (sup / sub / .frac / .bar; no raw ^ or _)
+     ========================================================================== */
+  :root {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --sub: #475569;
+    --accent: #2563eb;
+    --accent-soft: #eff6ff;
+    --green: #15803d;
+    --green-soft: #f0fdf4;
+    --amber: #b45309;
+    --amber-soft: #fffbeb;
+    --purple: #6d28d9;
+    --purple-soft: #f5f3ff;
+    --danger: #b91c1c;
+    --danger-soft: #fef2f2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%;
+    overflow-x: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 12px 14px 28px;
+    line-height: 1.52;
+  }
+  .container { max-width: 920px; margin: 0 auto; width: 100%; }
+  .tab-rad, .fc-chk { display: none; }
+
+  sup, sub { font-size: 75%; line-height: 0; position: relative; vertical-align: baseline; }
+  sup { top: -0.42em; }
+  sub { bottom: -0.22em; }
+  i { font-family: "Times New Roman", "Cambria Math", Georgia, serif; }
+  .bar { display: inline-block; border-top: 1.2px solid currentColor; padding-top: 0.5px; line-height: 1.02; }
+  .frac {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    vertical-align: middle;
+    margin: 0 2px;
+    font-family: "Times New Roman", "Cambria Math", serif;
+    font-size: 94%;
+    line-height: 1.12;
+  }
+  .frac > .num { border-bottom: 1.2px solid currentColor; padding: 0 4px 1px; text-align: center; }
+  .frac > .den { padding: 1px 4px 0; text-align: center; }
+
+  .header {
+    background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%);
+    color: #fff;
+    padding: 12px 16px;
+    border-radius: 11px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 3px 10px rgba(37, 99, 235, 0.16);
+  }
+  .header h1 { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .progress-pill {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .quick-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    transition: all 0.15s;
+  }
+  .nav-link:hover { background: var(--accent-soft); border-color: #93c5fd; }
+
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+  .tab-btn {
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--sub);
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.14s;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    user-select: none;
+  }
+  .tab-btn:hover { border-color: #93c5fd; color: var(--accent); }
+
+  #tab-rad-1:checked ~ .container .tabs label[for="tab-rad-1"],
+  #tab-rad-2:checked ~ .container .tabs label[for="tab-rad-2"],
+  #tab-rad-3:checked ~ .container .tabs label[for="tab-rad-3"],
+  #tab-rad-4:checked ~ .container .tabs label[for="tab-rad-4"] {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  .tab-pane { display: none; }
+  #tab-rad-1:checked ~ .container #pane-1,
+  #tab-rad-2:checked ~ .container #pane-2,
+  #tab-rad-3:checked ~ .container #pane-3,
+  #tab-rad-4:checked ~ .container #pane-4 { display: block; }
+
+  .sec-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    margin: 12px 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: #1e293b;
+  }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; flex-shrink: 0; }
+  .badge-blue { background: var(--accent-soft); color: var(--accent); }
+  .badge-purple { background: var(--purple-soft); color: var(--purple); }
+  .badge-amber { background: var(--amber-soft); color: var(--amber); }
+  .badge-green { background: var(--green-soft); color: var(--green); }
+
+  .grid { display: grid; grid-template-columns: 1fr; gap: 9px; }
+  @media (min-width: 620px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+    .tabs { grid-template-columns: repeat(4, 1fr); }
+  }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; }
+  .card-title { font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  .formula-box {
+    background: #f1f5f9;
+    border-left: 3px solid var(--accent);
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-family: "Times New Roman", "Cambria Math", serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #0f172a;
+    margin: 5px 0;
+    line-height: 1.6;
+  }
+  .intuition { font-size: 12.2px; color: var(--sub); margin-top: 4px; }
+  .pitfall { margin-top: 6px; padding: 5px 8px; background: var(--danger-soft); border-radius: 6px; font-size: 11.8px; color: var(--danger); font-weight: 600; }
+
+  .qa-card { background: var(--purple-soft); border: 1px solid #ddd6fe; border-radius: 10px; padding: 10px 13px; margin-bottom: 8px; }
+  .qa-q { font-size: 12.8px; font-weight: 700; color: #5b21b6; margin-bottom: 4px; }
+  .qa-a { font-size: 12.2px; color: #3b0764; }
+
+  .flashcard-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  @media (min-width: 620px) { .flashcard-grid { grid-template-columns: 1fr 1fr; } }
+  .fcard {
+    background: var(--card);
+    border: 1.5px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.14s;
+    display: block;
+    user-select: none;
+  }
+  .fcard:hover { border-color: var(--accent); background: #f8fafc; }
+  .fcard-front, .fcard-back { display: flex; flex-direction: column; justify-content: space-between; gap: 5px; }
+  .fcard-back { display: none; }
+  .fc-chk:checked ~ .fcard-front { display: none; }
+  .fc-chk:checked ~ .fcard-back { display: flex; }
+  .fcard:has(.fc-chk:checked) { background: #eff6ff; border-color: #60a5fa; }
+  .fcard-top { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 700; color: var(--accent); }
+  .fcard-back .fcard-top { color: var(--green); }
+  .fcard-hint { font-size: 11px; color: #64748b; font-weight: 500; }
+  .fcard-body { font-size: 12.8px; font-weight: 600; color: #0f172a; line-height: 1.56; }
+  .fcard-back .fcard-body { color: #1e3a8a; font-weight: 500; }
+
+  .preview-box {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border: 1px solid #fde68a;
+    border-radius: 10px;
+    padding: 11px 14px;
+    margin-top: 12px;
+  }
+  .preview-title { font-size: 13px; font-weight: 700; color: #92400e; margin-bottom: 5px; }
+  .preview-list { font-size: 12.2px; color: #78350f; padding-left: 18px; }
+  .preview-list li { margin-bottom: 4px; }
+</style>
+</head>
+<body>
+  <input type="radio" name="b-tab" id="tab-rad-1" class="tab-rad" checked>
+  <input type="radio" name="b-tab" id="tab-rad-2" class="tab-rad">
+  <input type="radio" name="b-tab" id="tab-rad-3" class="tab-rad">
+  <input type="radio" name="b-tab" id="tab-rad-4" class="tab-rad">
+
+  <div class="container">
+    <div class="header">
+      <h1>STEM Study Review Board</h1>
+      <div class="progress-pill">Module 1 / 3 · In Progress</div>
+    </div>
+
+    <div class="quick-nav">
+      <a class="nav-link" href="./diagrams/fig_01_demo.html">Vector Schematic</a>
+      <a class="nav-link" href="./quiz.html">Interactive Quiz</a>
+      <a class="nav-link" href="./notes.md">Archive Notes (notes.md)</a>
+    </div>
+
+    <div class="tabs">
+      <label for="tab-rad-1" class="tab-btn">Core Concepts &amp; Cards</label>
+      <label for="tab-rad-2" class="tab-btn">Q&amp;A &amp; Pitfalls</label>
+      <label for="tab-rad-3" class="tab-btn">Diagrams &amp; Quiz Hub</label>
+      <label for="tab-rad-4" class="tab-btn">Full Flashcard Deck</label>
+    </div>
+
+    <div id="pane-1" class="tab-pane">
+      <div class="sec-title">
+        <span>Active Recall Flashcards (Click to Flip)</span>
+        <span class="badge badge-amber">New First</span>
+      </div>
+      <div class="flashcard-grid">
+        <label class="fcard is-new">
+          <input type="checkbox" class="fc-chk" data-cid="card-1">
+          <div class="fcard-front">
+            <div class="fcard-top"><span>New Card #1</span><span class="fcard-hint">Show answer →</span></div>
+            <div class="fcard-body">What is the small-signal input resistance <i>r</i><sub>π</sub> of a BJT at room temperature?</div>
+          </div>
+          <div class="fcard-back">
+            <div class="fcard-top"><span>Flipped · Answer</span><span class="fcard-hint">Flip back ↺</span></div>
+            <div class="fcard-body"><i>r</i><sub>π</sub> = <span class="frac"><span class="num"><i>β</i><i>V</i><sub>T</sub></span><span class="den"><i>I</i><sub>CQ</sub></span></span> ≈ <span class="frac"><span class="num"><i>β</i> · 26 mV</span><span class="den"><i>I</i><sub>CQ</sub></span></span></div>
+          </div>
+        </label>
+        <label class="fcard is-new">
+          <input type="checkbox" class="fc-chk" data-cid="card-2">
+          <div class="fcard-front">
+            <div class="fcard-top"><span>New Card #2</span><span class="fcard-hint">Show answer →</span></div>
+            <div class="fcard-body">Why does the common-emitter voltage gain <i>A</i><sub>v</sub> carry a negative sign?</div>
+          </div>
+          <div class="fcard-back">
+            <div class="fcard-top"><span>Flipped · Answer</span><span class="fcard-hint">Flip back ↺</span></div>
+            <div class="fcard-body">The AC output voltage <i>v</i><sub>o</sub> is 180° out of phase (inverted) with respect to <i>v</i><sub>i</sub>.</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="sec-title">
+        <span>Core Formula Cards</span>
+        <span class="badge badge-blue">Module 1</span>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <div class="card-title"><span>Voltage-Divider Base Potential</span><span class="badge badge-green">DC Bias</span></div>
+          <div class="formula-box"><i>V</i><sub>BQ</sub> ≈ <span class="frac"><span class="num"><i>R</i><sub>2</sub></span><span class="den"><i>R</i><sub>1</sub> + <i>R</i><sub>2</sub></span></span><i>V</i><sub>CC</sub></div>
+          <div class="intuition">Intuition: When divider current is much larger than base current, the resistive divider pins the base voltage firmly.</div>
+          <div class="pitfall">Pitfall: Verify <i>R</i><sub>1</sub>∥<i>R</i><sub>2</sub> ≪ (1 + <i>β</i>)<i>R</i><sub>E</sub> before skipping the exact Thevenin equivalent.</div>
+        </div>
+      </div>
+
+      <div class="preview-box">
+        <div class="preview-title">Next-Step Study Preview</div>
+        <ul class="preview-list">
+          <li>Compare bypassed vs. unbypassed emitter resistor <i>R</i><sub>E</sub> in the AC small-signal model.</li>
+          <li>Test mastery in <code>quiz.html</code> with offline mistake tracking.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div id="pane-2" class="tab-pane">
+      <div class="sec-title"><span>High-Frequency Pitfalls &amp; Q&amp;A</span><span class="badge badge-purple">Review</span></div>
+      <div class="qa-card">
+        <div class="qa-q">Q: Why is the external load <i>R</i><sub>L</sub> in parallel with <i>R</i><sub>C</sub> in AC analysis?</div>
+        <div class="qa-a">A: In the AC equivalent circuit, DC supply <i>V</i><sub>CC</sub> acts as AC ground and coupling capacitor <i>C</i><sub>2</sub> acts as a short, placing <i>R</i><sub>C</sub> and <i>R</i><sub>L</sub> in parallel from collector to ground.</div>
+      </div>
+    </div>
+
+    <div id="pane-3" class="tab-pane">
+      <div class="sec-title"><span>Linked Schematics &amp; Practice Quiz</span><span class="badge badge-blue">Offline Ready</span></div>
+      <div class="grid">
+        <div class="card">
+          <div class="card-title"><span>Vector Schematic</span><span class="badge badge-green">IEEE / IEC</span></div>
+          <p class="intuition">Standalone pure-SVG schematic with crisp labels and component legend.</p>
+          <p style="margin-top:8px;"><a class="nav-link" href="./diagrams/fig_01_demo.html">Open Diagram →</a></p>
+        </div>
+        <div class="card">
+          <div class="card-title"><span>Interactive Variant Quiz</span><span class="badge badge-amber">Offline Notebook</span></div>
+          <p class="intuition">Per-question immutable lock, option diagnostics, and localStorage Mistake Notebook.</p>
+          <p style="margin-top:8px;"><a class="nav-link" href="./quiz.html">Start Quiz →</a></p>
+        </div>
+      </div>
+    </div>
+
+    <div id="pane-4" class="tab-pane">
+      <div class="sec-title"><span>Complete Flashcard Deck</span><span class="badge badge-green">Synced</span></div>
+      <div class="flashcard-grid">
+        <label class="fcard is-new">
+          <input type="checkbox" class="fc-chk" data-cid="card-1">
+          <div class="fcard-front">
+            <div class="fcard-top"><span>Card #1</span><span class="fcard-hint">Show answer →</span></div>
+            <div class="fcard-body">What is the small-signal input resistance <i>r</i><sub>π</sub> of a BJT at room temperature?</div>
+          </div>
+          <div class="fcard-back">
+            <div class="fcard-top"><span>Flipped · Answer</span><span class="fcard-hint">Flip back ↺</span></div>
+            <div class="fcard-body"><i>r</i><sub>π</sub> = <span class="frac"><span class="num"><i>β</i><i>V</i><sub>T</sub></span><span class="den"><i>I</i><sub>CQ</sub></span></span> ≈ <span class="frac"><span class="num"><i>β</i> · 26 mV</span><span class="den"><i>I</i><sub>CQ</sub></span></span></div>
+          </div>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    const STORAGE_KEY = 'stem_notes_en_board_flips_v1';
+    let flipMap = {};
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw && raw.startsWith('{')) flipMap = JSON.parse(raw);
+    } catch (e) {}
+    function save() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(flipMap)); } catch (e) {}
+    }
+    const chks = document.querySelectorAll('.fc-chk');
+    chks.forEach(function(chk) {
+      const cid = chk.getAttribute('data-cid');
+      if (cid && Object.prototype.hasOwnProperty.call(flipMap, cid)) {
+        chk.checked = Boolean(flipMap[cid]);
+      }
+      chk.addEventListener('change', function() {
+        if (!cid) return;
+        flipMap[cid] = this.checked;
+        document.querySelectorAll('.fc-chk[data-cid="' + cid + '"]').forEach(function(peer) {
+          peer.checked = chk.checked;
+        });
+        save();
+      });
+    });
+  })();
+  </script>
+</body>
+</html>
